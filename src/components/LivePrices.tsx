@@ -56,8 +56,8 @@ export default function LivePrices({ prices }: { prices: Prices }) {
       </p>
       
       {change !== undefined && (
-        <p className="text-xs text-slate-600 mt-2">
-          ${format(change >= 0 ? price / (1 + change / 100) : price / (1 - Math.abs(change) / 100))} → ${format(price / (prices.usdToEgp || 1))}
+        <p className="text-2xl text-slate-600 mt-2">
+          ${format(price / (prices.usdToEgp || 1))}
         </p>
       )}
     </div>
@@ -74,14 +74,14 @@ export default function LivePrices({ prices }: { prices: Prices }) {
         <PriceCard
           title="Gold per Oz"
           price={prices.gold.egp}
-          change={prices.gold.change}
+          change={prices.gold.usd}
           color="from-amber-500 to-orange-600"
           icon={Coins}
         />
         <PriceCard
           title="Silver per Oz"
           price={prices.silver.egp}
-          change={prices.silver.change}
+          change={prices.silver.usd}
           color="from-slate-400 to-slate-600"
           icon={Coins}
         />
