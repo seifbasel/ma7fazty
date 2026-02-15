@@ -19,9 +19,10 @@ export async function GET() {
     });
 
     // Fetch USD → EGP
-    const fxRes = await fetch("https://open.er-api.com/v6/latest/USD", {
-      next: { revalidate: 300 },
-    });
+    const fxRes = await fetch(
+      "https://open.er-api.com/v6/latest/USD",
+      { next: { revalidate: 300 } }
+    );
 
     if (!goldRes.ok) {
       throw new Error("Gold API failed");
@@ -70,10 +71,9 @@ export async function GET() {
   } catch (error) {
     console.error("Live price fetch failed:", error);
 
-    return NextResponse.json({
-      gold: { usd: 5000, egp: 250000, change: 0 },
-      silver: { usd: 100, egp: 5000, change: 0 },
-      usdToEgp: 49,
-    });
+    return NextResponse.json(
+      { error: "Failed to fetch live prices" },
+      { status: 500 }
+    );
   }
 }
