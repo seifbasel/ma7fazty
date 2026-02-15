@@ -10,7 +10,7 @@ export default function PortfolioCard({
   return (
     <div className="card-gradient rounded-3xl p-6 glow-green">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center">
           <DollarSign className="w-6 h-6 text-white" />
         </div>
         <div>

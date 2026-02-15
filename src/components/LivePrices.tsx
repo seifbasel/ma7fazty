@@ -24,7 +24,7 @@ export default function LivePrices({ prices }: { prices: Prices }) {
     <div className="card-gradient rounded-3xl p-6 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300">
       <div className="flex justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl bg-gradient-to-br ${color}`}>
+          <div className={`p-2 rounded-xl bg-linear-to-br ${color}`}>
             <Icon className="w-5 h-5 text-white" />
           </div>
           <div>

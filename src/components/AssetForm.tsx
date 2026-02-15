@@ -152,7 +152,7 @@ export default function AssetForm({
         <div className="flex gap-3 md:col-span-2">
           <Button
             onClick={handleSubmit}
-            className="flex-1 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold"
+            className="flex-1 bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold"
           >
             {editingAsset ? "💾 Save Changes" : "➕ Add Asset"}
           </Button>

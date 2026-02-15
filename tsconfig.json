@@ -21,6 +21,9 @@
     "paths": {
       "@/*": ["./src/*"]
     }
+    // ,
+    // // Add only if the deprecation error still appears (shouldn't be needed long-term)
+    // "ignoreDeprecations": "6.0"
   },
   "include": [
     "next-env.d.ts",

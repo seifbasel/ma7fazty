@@ -52,7 +52,7 @@ export default function AssetCard({
   };
 
   return (
-    <div className="card-gradient border-1 rounded-2xl p-6 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300 group">
+    <div className="card-gradient border rounded-2xl p-6 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300 group">
       <div className="flex justify-between items-start mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
