@@ -21,7 +21,7 @@ export default function LivePrices({ prices }: { prices: Prices }) {
     color: string;
     icon: any;
   }) => (
-    <div className="card-gradient rounded-3xl p-6 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300">
+    <div className="card-gradient rounded-xl p-6 shadow-xl shadow-amber-500/30 transition-all duration-300">
       <div className="flex justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-xl bg-linear-to-br ${color}`}>
@@ -31,24 +31,6 @@ export default function LivePrices({ prices }: { prices: Prices }) {
             <p className="text-sm text-slate-400">{title}</p>
           </div>
         </div>
-        {change !== undefined && (
-          <div
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg ${
-              change >= 0
-                ? "bg-green-500/10 text-green-400"
-                : "bg-red-500/10 text-red-400"
-            }`}
-          >
-            {change >= 0 ? (
-              <TrendingUp className="w-3 h-3" />
-            ) : (
-              <TrendingDown className="w-3 h-3" />
-            )}
-            <span className="text-xs font-semibold">
-              {Math.abs(change).toFixed(2)}%
-            </span>
-          </div>
-        )}
       </div>
 
       <p className={`text-3xl font-bold ${color.includes('amber') ? 'text-amber-400' : color.includes('slate') ? 'text-slate-300' : 'text-green-400'}`}>
@@ -70,7 +52,7 @@ export default function LivePrices({ prices }: { prices: Prices }) {
         Live Market Prices
       </h2>
       
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-3 gap-6 ">
         <PriceCard
           title="Gold per Oz"
           price={prices.gold.egp}

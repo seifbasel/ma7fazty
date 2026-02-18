@@ -1,59 +1,41 @@
 import { NextResponse } from "next/server";
 
+export const revalidate = 86400; // Cache the entire route for 24 hours
+
 export async function GET() {
   try {
-    // Fetch Gold
-    const goldRes = await fetch("https://www.goldapi.io/api/XAU/USD", {
-      headers: {
-        "x-access-token": process.env.GOLD_API_KEY!,
-      },
-      next: { revalidate: 300 },
-    });
+    const [goldRes, silverRes, fxRes] = await Promise.all([
+      fetch("https://www.goldapi.io/api/XAU/USD", {
+        headers: { "x-access-token": process.env.GOLD_API_KEY! },
+        next: { revalidate: 86400 },
+      }),
+      fetch("https://www.goldapi.io/api/XAG/USD", {
+        headers: { "x-access-token": process.env.GOLD_API_KEY! },
+        next: { revalidate: 86400 },
+      }),
+      fetch("https://open.er-api.com/v6/latest/USD", {
+        next: { revalidate: 86400 },
+      }),
+    ]);
 
-    // Fetch Silver
-    const silverRes = await fetch("https://www.goldapi.io/api/XAG/USD", {
-      headers: {
-        "x-access-token": process.env.GOLD_API_KEY!,
-      },
-      next: { revalidate: 300 },
-    });
+    if (!goldRes.ok) throw new Error("Gold API failed");
+    if (!silverRes.ok) throw new Error("Silver API failed");
+    if (!fxRes.ok) throw new Error("FX API failed");
 
-    // Fetch USD → EGP
-    const fxRes = await fetch(
-      "https://open.er-api.com/v6/latest/USD",
-      { next: { revalidate: 300 } }
-    );
-
-    if (!goldRes.ok) {
-      throw new Error("Gold API failed");
-    }
-
-    if (!silverRes.ok) {
-      throw new Error("Silver API failed");
-    }
-
-    if (!fxRes.ok) {
-      throw new Error("FX API failed");
-    }
-
-    const goldData = await goldRes.json();
-    const silverData = await silverRes.json();
-    const fxData = await fxRes.json();
+    const [goldData, silverData, fxData] = await Promise.all([
+      goldRes.json(),
+      silverRes.json(),
+      fxRes.json(),
+    ]);
 
     const usdToEgp = fxData?.rates?.EGP;
-
-    if (!usdToEgp) {
-      throw new Error("EGP rate missing from FX response");
-    }
+    if (!usdToEgp) throw new Error("EGP rate missing from FX response");
 
     const goldUSD = goldData?.price;
     const silverUSD = silverData?.price;
+    if (!goldUSD || !silverUSD) throw new Error("Metal price missing");
 
-    if (!goldUSD || !silverUSD) {
-      throw new Error("Metal price missing");
-    }
-
-    const prices = {
+    return NextResponse.json({
       gold: {
         usd: goldUSD,
         egp: goldUSD * usdToEgp,
@@ -65,12 +47,9 @@ export async function GET() {
         change: silverData?.ch ?? 0,
       },
       usdToEgp,
-    };
-
-    return NextResponse.json(prices);
+    });
   } catch (error) {
     console.error("Live price fetch failed:", error);
-
     return NextResponse.json(
       { error: "Failed to fetch live prices" },
       { status: 500 }

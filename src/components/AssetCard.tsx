@@ -62,22 +62,22 @@ export default function AssetCard({
           <p className="text-sm text-slate-400 capitalize">{asset.type}</p>
         </div>
         
-        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-2">
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={() => onEdit(asset)}
             className="hover:bg-blue-500/20 hover:text-blue-400"
           >
-            <Pencil className="w-4 h-4" />
+            <Pencil className="w-5 h-5" />
           </Button>
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={() => onDelete(asset.id)}
-            className="hover:bg-red-500/20 hover:text-red-400"
+            className="bg-red-500/20 text-red-400"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-5 h-5" />
           </Button>
         </div>
       </div>

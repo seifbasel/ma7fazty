@@ -12,7 +12,7 @@ export default function Header() {
         </h1>
       </div>
       <p className="text-slate-400 text-lg ml-20">
-        Track your wealth across precious metals and currencies
+        Track your wealth anywhere
       </p>
     </div>
   );
