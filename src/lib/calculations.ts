@@ -50,40 +50,44 @@ export function calculateProjectedInterestValue(asset: Asset): number {
   }
 
   const monthsElapsed = calculateMonthsElapsed(asset.startDate, asset.endDate);
-  const yearsElapsed = monthsElapsed / 12;
+  const completeMonths = Math.floor(monthsElapsed);
   const rateDecimal = asset.interestRate / 100;
+  const monthlyInterest = asset.principal * rateDecimal / 12;
 
   let projectedValue: number;
 
   if (asset.interestType === "simple") {
-    projectedValue = asset.principal * (1 + rateDecimal * yearsElapsed);
+    // Simple interest: Principal + (monthly interest × complete months)
+    projectedValue = asset.principal + (monthlyInterest * completeMonths);
   } else {
+    // Compound interest: Principal × (1 + monthly rate)^complete months
     const monthRate = rateDecimal / 12;
-    projectedValue = asset.principal * Math.pow(1 + monthRate, monthsElapsed);
+    projectedValue = asset.principal * Math.pow(1 + monthRate, completeMonths);
   }
 
   return projectedValue;
 }
 
-// Calculate interest account value
+// Calculate interest account value (from start to today)
 function calculateInterestValue(asset: Asset): number {
   if (!asset.principal || !asset.interestRate || !asset.startDate || !asset.interestType) {
     return asset.amount || 0;
   }
 
-  const monthsElapsed = calculateMonthsElapsed(asset.startDate, asset.endDate);
-  const yearsElapsed = monthsElapsed / 12;
+  const monthsElapsed = calculateMonthsElapsed(asset.startDate);
+  const completeMonths = Math.floor(monthsElapsed);
   const rateDecimal = asset.interestRate / 100;
+  const monthlyInterest = asset.principal * rateDecimal / 12;
 
   let accumulatedValue: number;
 
   if (asset.interestType === "simple") {
-    // Simple interest: Principal + (Principal × Rate × Time)
-    accumulatedValue = asset.principal * (1 + rateDecimal * yearsElapsed);
+    // Simple interest: Principal + (monthly interest × complete months)
+    accumulatedValue = asset.principal + (monthlyInterest * completeMonths);
   } else {
-    // Compound interest: Principal × (1 + Rate)^(months)
+    // Compound interest: Principal × (1 + monthly rate)^complete months
     const monthRate = rateDecimal / 12;
-    accumulatedValue = asset.principal * Math.pow(1 + monthRate, monthsElapsed);
+    accumulatedValue = asset.principal * Math.pow(1 + monthRate, completeMonths);
   }
 
   return accumulatedValue;
