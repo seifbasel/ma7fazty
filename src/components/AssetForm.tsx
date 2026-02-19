@@ -53,11 +53,12 @@ export default function AssetForm({
 }) {
   const defaultForm = {
     name: "",
-    type: "cash" as "gold" | "silver" | "usd" | "cash" | "rent" | "interest",
+    type: "cash" as "gold" | "silver" | "usd" | "cash" | "rent" | "salary" | "interest",
     amount: "",
     unit: "EGP",
     purity: 24 as 18 | 21 | 22 | 24,
     monthlyRent: "",
+    monthlySalary: "",
     principal: "",
     interestRate: "",
     interestType: "simple" as "simple" | "compound",
@@ -76,6 +77,7 @@ export default function AssetForm({
         unit: editingAsset.unit,
         purity: editingAsset.purity ?? 24,
         monthlyRent: editingAsset.monthlyRent?.toString() || "",
+        monthlySalary: editingAsset.monthlySalary?.toString() || "",
         principal: editingAsset.principal?.toString() || "",
         interestRate: editingAsset.interestRate?.toString() || "",
         interestType: editingAsset.interestType || "simple",
@@ -94,6 +96,7 @@ export default function AssetForm({
       usd: "USD",
       cash: "EGP",
       rent: "EGP",
+      salary: "EGP",
       interest: "EGP",
     };
     const newUnit = unitMap[form.type];
@@ -105,28 +108,20 @@ export default function AssetForm({
   const handleSubmit = () => {
     if (!form.name) return;
     if (form.type === "rent" && (!form.monthlyRent || !form.startDate)) return;
-    if (
-      form.type === "interest" &&
-      (!form.principal || !form.interestRate || !form.startDate)
-    )
-      return;
-    if (
-      form.type !== "rent" &&
-      form.type !== "interest" &&
-      !form.amount
-    )
-      return;
+    if (form.type === "salary" && (!form.monthlySalary || !form.startDate)) return;
+    if (form.type === "salary" && (!form.monthlySalary || !form.startDate)) return;
+    if (form.type === "interest" && (!form.principal || !form.interestRate || !form.startDate)) return;
+    if (form.type !== "rent" && form.type !== "salary" && form.type !== "interest" && !form.amount) return;
 
     const asset: Asset = {
       id: editingAsset?.id || Date.now(),
       name: form.name,
       type: form.type as any,
       amount:
-        form.type === "rent"
-          ? parseFloat(form.monthlyRent)
-          : form.type === "interest"
-          ? parseFloat(form.principal)
-          : parseFloat(form.amount),
+        form.type === "rent" ? parseFloat(form.monthlyRent)
+        : form.type === "salary" ? parseFloat(form.monthlySalary)
+        : form.type === "interest" ? parseFloat(form.principal)
+        : parseFloat(form.amount),
       unit: form.unit,
       purity: form.type === "gold" ? form.purity : undefined,
       createdAt: editingAsset?.createdAt || new Date().toISOString(),
@@ -134,6 +129,10 @@ export default function AssetForm({
 
     if (form.type === "rent") {
       asset.monthlyRent = parseFloat(form.monthlyRent);
+      asset.startDate = form.startDate;
+      if (form.endDate) asset.endDate = form.endDate;
+    } else if (form.type === "salary") {
+      asset.monthlySalary = parseFloat(form.monthlySalary);
       asset.startDate = form.startDate;
       if (form.endDate) asset.endDate = form.endDate;
     } else if (form.type === "interest") {
@@ -218,7 +217,7 @@ export default function AssetForm({
         </Section>
 
         {/* Type-specific fields */}
-        {form.type !== "rent" && form.type !== "interest" && (
+        {form.type !== "rent" && form.type !== "salary" && form.type !== "interest" && (
           <Section title="Position">
             <div>
               <FieldLabel>Amount ({form.unit})</FieldLabel>
@@ -285,6 +284,40 @@ export default function AssetForm({
                 onChange={(e) =>
                   setForm({ ...form, startDate: e.target.value })
                 }
+              />
+            </div>
+            <div>
+              <FieldLabel>End Date (Optional)</FieldLabel>
+              <input
+                type="date"
+                className={FIELD_CLASS}
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              />
+            </div>
+          </Section>
+        )}
+
+        {form.type === "salary" && (
+          <Section title="Salary Details">
+            <div>
+              <FieldLabel>Monthly Salary (EGP)</FieldLabel>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                className={FIELD_CLASS}
+                value={form.monthlySalary}
+                onChange={(e) => setForm({ ...form, monthlySalary: e.target.value })}
+              />
+            </div>
+            <div>
+              <FieldLabel>Start Date</FieldLabel>
+              <input
+                type="date"
+                className={FIELD_CLASS}
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
               />
             </div>
             <div>

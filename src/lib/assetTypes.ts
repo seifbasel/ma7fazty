@@ -36,6 +36,12 @@ export const ASSET_TYPES = {
     color: "text-emerald-400",
     hexColor: "#10b981",
   },
+  salary: {
+  icon: "💼",
+  label: "Salary",
+  color: "text-sky-400",
+  hexColor: "#38bdf8",
+},
 } as const;
 
 export const getTypeIcon = (type: string) => ASSET_TYPES[type as keyof typeof ASSET_TYPES]?.icon ?? "💰";

@@ -2,6 +2,7 @@ import { Asset, Prices } from "@/types/asset";
 import {
   calculateAssetValue,
   calculateProjectedRentValue,
+  calculateProjectedSalaryValue,
   calculateProjectedInterestValue,
 } from "@/lib/calculations";
 import { getTypeIcon, getTypeColor } from "@/lib/assetTypes";
@@ -81,6 +82,8 @@ export default function AssetCard({
   const projectedValue =
     asset.type === "rent"
       ? calculateProjectedRentValue(asset)
+      : asset.type === "salary"
+      ? calculateProjectedSalaryValue(asset)
       : asset.type === "interest"
       ? calculateProjectedInterestValue(asset)
       : null;
@@ -132,18 +135,18 @@ export default function AssetCard({
           </div>
         </div>
 
-        <div className="flex gap-1 duration-200">
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
             onClick={() => onEdit(asset)}
             className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-500 hover:text-blue-400 transition-colors"
           >
-            <Pencil className="w-5 h-5" />
+            <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onDelete(asset.id, asset.name)}
             className="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
           >
-            <Trash2 className="w-5 h-5" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -164,8 +167,14 @@ export default function AssetCard({
         )}
         {asset.type === "rent" && (
           <InfoRow
-            label="Monthly"
+            label="Monthly Rent"
             value={`${fmt(asset.monthlyRent ?? 0)} EGP`}
+          />
+        )}
+        {asset.type === "salary" && (
+          <InfoRow
+            label="Monthly Salary"
+            value={`${fmt(asset.monthlySalary ?? 0)} EGP`}
           />
         )}
         {asset.type !== "rent" && asset.type !== "interest" && (

@@ -1,72 +1,100 @@
-# Asset Vault 🪙
+# MA7FAZTY 🪙
 
-A beautiful, modern asset tracker for managing precious metals (gold, silver) and currencies (USD, EGP cash) with live price updates.
+A beautiful, modern asset tracker for managing precious metals, currencies, real estate income, and interest-bearing assets — with live prices, portfolio analytics, and 12-month projections.
 
 ## Features
 
 ✨ **Live Market Prices**
-- Real-time gold and silver prices per ounce in EGP
+- Real-time gold and silver prices per troy oz in EGP & USD
 - USD to EGP exchange rate
-- Percentage change indicators
+- Animated live indicator badge
 
 💰 **Multi-Asset Support**
-- Track cash in EGP
-- Track USD holdings
-- Track gold in grams (auto-converts to oz)
-- Track silver in grams (auto-converts to oz)
+- Cash (EGP)
+- USD holdings
+- Gold in grams — supports 18K, 21K, 22K, 24K purity
+- Silver in grams
+- Rental income (monthly rent × elapsed months)
+- Interest-bearing deposits (simple or monthly compound)
 
-📊 **Portfolio Management**
-- Total portfolio value in EGP
-- Individual asset cards with current values
-- Edit and delete functionality
-- Persistent storage using localStorage
+📊 **Portfolio Analytics**
+- Total portfolio value with top holding breakdown
+- Donut pie chart — interactive hover with per-slice EGP value & percentage
+- Asset distribution by type with color-coded legend
+- 12-month forward projection chart with month-over-month growth strip
+- Projection logic per asset type (rent accumulation, compound/simple interest, stable market prices)
 
-🎨 **Modern UI**
-- Dark theme with gradient cards
-- Responsive design (mobile + desktop)
-- Smooth animations and hover effects
-- Clean, professional interface
+🗂️ **Asset Management**
+- Add, edit, delete assets
+- Per-type forms (dates, rates, purity, principal)
+- Confirm dialog before deletion
+- Persistent storage via localStorage
+
+🎨 **UI & Design**
+- Dark slate theme with per-type gradient cards (amber/gold, violet/rent, rose/interest, etc.)
+- Ambient glow blobs and hover scale effects on cards
+- Fully responsive — mobile & desktop
+- Interactive charts with touch support
+- Edit/delete controls revealed on hover
 
 ## Project Structure
 
 ```
 /app
-  /page.tsx                 # Main page component
+  /page.tsx                    # Root page
   /api
     /prices
-      /route.ts            # API endpoint for live prices
-
-/components
-  /Header.tsx              # App header with title
-  /LivePrices.tsx          # Live price display cards
-  /PortfolioCard.tsx       # Total portfolio value card
-  /AssetForm.tsx           # Form for adding/editing assets
-  /AssetCard.tsx           # Individual asset display card
-  /AssetGrid.tsx           # Grid layout for asset cards
-  /ui
-    /button.tsx            # Button component
-    /input.tsx             # Input component
-    /label.tsx             # Label component
+      /route.ts                # API endpoint for live prices
 
 /sections
-  /AssetTracker.tsx        # Main tracker component
+  /AssetTracker.tsx            # Main orchestration component
+
+/components
+  /Header.tsx                  # MA7FAZTY branding header
+  /LivePrices.tsx              # Gold, silver, USD price cards
+  /PortfolioCard.tsx           # Total value + top holding stats
+  /AssetDistribution.tsx       # Donut pie chart by asset type
+  /PieChart.tsx                # Reusable interactive donut chart
+  /MonthlyGrowthChart.tsx      # 12-month forward projection chart
+  /AssetForm.tsx               # Add / edit asset form
+  /AssetFormModal.tsx          # Edit asset in a modal dialog
+  /AssetCard.tsx               # Individual asset card
+  /AssetGrid.tsx               # Asset card grid + empty state
+  /ConfirmDialog.tsx           # Delete confirmation dialog
+  /ui
+    /button.tsx
+    /input.tsx
+    /label.tsx
+    /dialog.tsx
 
 /hooks
-  /useAssets.ts            # Asset state management
-  /usePrices.ts            # Price fetching logic
+  /useAssets.ts                # Asset CRUD + localStorage persistence
+  /usePrices.ts                # Price polling / fetching
 
 /lib
-  /calculations.ts         # Asset value calculations
-  /utils.ts                # Utility functions (cn)
+  /calculations.ts             # Value calculations per asset type
+  /assetTypes.ts               # Icons, labels, colors per type
+  /utils.ts                    # cn() utility
 
 /types
-  /asset.ts                # TypeScript type definitions
-
-/styles
-  /globals.css             # Global styles and card gradients
+  /asset.ts                    # Asset & Prices TypeScript types
 ```
 
-## Setup Instructions
+## Asset Types & Calculations
+
+| Type | Value Logic |
+|------|-------------|
+| **Cash** | Fixed EGP amount |
+| **USD** | Amount × current EGP rate |
+| **Gold** | Grams × (price/troy oz ÷ 31.1035) × (purity/24) |
+| **Silver** | Grams × (price/troy oz ÷ 31.1035) |
+| **Rent** | Monthly rent × months elapsed from start date |
+| **Interest (simple)** | P × (1 + r × t) |
+| **Interest (compound)** | P × (1 + r/12)^months |
+
+All rent and interest assets respect an optional `endDate` — value stops growing once the contract ends.
+
+## Setup
 
 1. **Install dependencies:**
    ```bash
@@ -79,95 +107,104 @@ A beautiful, modern asset tracker for managing precious metals (gold, silver) an
    ```
 
 3. **Open in browser:**
-   Navigate to `http://localhost:3000`
+   ```
+   http://localhost:3000
+   ```
 
 ## API Integration
 
-The app currently uses mock data in `/app/api/prices/route.ts`. To integrate real live prices:
-
-### Recommended APIs:
-
-1. **Gold/Silver Prices:**
-   - [Metals API](https://metals-api.com/) - Free tier available
-   - [GoldAPI](https://www.goldapi.io/) - Real-time precious metals
-   
-2. **Currency Exchange:**
-   - [ExchangeRate-API](https://www.exchangerate-api.com/) - Free USD to EGP
-   - [Fixer.io](https://fixer.io/) - Currency conversion
-
-### Example Integration:
+Live prices are fetched from `/app/api/prices/route.ts`. The app expects this shape:
 
 ```typescript
-// In /app/api/prices/route.ts
-const goldResponse = await fetch('https://metals-api.com/api/latest?access_key=YOUR_KEY');
-const goldData = await goldResponse.json();
+// types/asset.ts
+interface Prices {
+  gold:   { usd: number; egp: number };
+  silver: { usd: number; egp: number };
+  usdToEgp: number;
+}
+```
 
-const exchangeResponse = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-const exchangeData = await exchangeResponse.json();
+### Recommended APIs
 
-const prices = {
-  gold: {
-    usd: goldData.rates.XAU,
-    egp: goldData.rates.XAU * exchangeData.rates.EGP,
-    change: calculateChange(goldData),
-  },
-  // ... similar for silver and USD
-};
+| Data | Provider |
+|------|----------|
+| Gold & Silver | [GoldAPI.io](https://www.goldapi.io/) · [Metals-API](https://metals-api.com/) |
+| USD → EGP | [ExchangeRate-API](https://www.exchangerate-api.com/) · [Fixer.io](https://fixer.io/) |
+
+### Example route
+
+```typescript
+// app/api/prices/route.ts
+export async function GET() {
+  const [metals, fx] = await Promise.all([
+    fetch('https://www.goldapi.io/api/XAU/USD', {
+      headers: { 'x-access-token': process.env.GOLD_API_KEY! }
+    }).then(r => r.json()),
+    fetch('https://api.exchangerate-api.com/v4/latest/USD').then(r => r.json()),
+  ]);
+
+  const egpRate = fx.rates.EGP;
+
+  return Response.json({
+    gold:    { usd: metals.price,        egp: metals.price * egpRate },
+    silver:  { usd: metals.silver_price, egp: metals.silver_price * egpRate },
+    usdToEgp: egpRate,
+  });
+}
 ```
 
 ## Configuration
 
-### Path Aliases (tsconfig.json)
+### Path aliases (`tsconfig.json`)
+
 ```json
 {
   "compilerOptions": {
     "paths": {
-      "@/*": ["./*"],
-      "@/components/*": ["./components/*"],
-      "@/lib/*": ["./lib/*"],
-      "@/hooks/*": ["./hooks/*"],
-      "@/types/*": ["./types/*"],
-      "@/sections/*": ["./sections/*"]
+      "@/*": ["./*"]
     }
   }
 }
 ```
 
-### Tailwind Config
-The app uses custom gradient styles defined in `globals.css`:
-- `.card-gradient` - Card background with border
-- `.glow-green` - Green glow effect
-- `.glow-amber` - Amber glow effect
+### Custom Tailwind classes (`globals.css`)
+
+```css
+.card-gradient  /* dark card background with border */
+.glow-green     /* emerald glow shadow */
+.glow-amber     /* amber glow shadow */
+```
 
 ## Storage
 
-Assets are stored in browser localStorage with the key `"assets"`. Data persists across sessions but is specific to each browser/device.
+Assets persist in `localStorage` under the key `"assets"`. To sync across devices:
 
-To implement cloud sync, you could:
-1. Add a backend API (Supabase, Firebase, etc.)
-2. Replace localStorage with API calls in `useAssets.ts`
-3. Add user authentication
+1. Add a backend (Supabase, Firebase, PlanetScale, etc.)
+2. Replace `localStorage` calls in `useAssets.ts` with API calls
+3. Add authentication (NextAuth.js, Clerk, etc.)
 
-## Future Enhancements
+## Roadmap
 
-- [ ] User authentication
-- [ ] Cloud storage/sync across devices
-- [ ] Historical price charts
-- [ ] Export portfolio to PDF/CSV
-- [ ] Multi-currency support
-- [ ] Price alerts and notifications
-- [ ] Category/tag system for assets
-- [ ] Recurring asset tracking (monthly contributions)
+- [ ] Cloud sync & user accounts
+- [ ] Historical price tracking (store daily snapshots)
+- [ ] Export to PDF / CSV
+- [ ] Price alerts & push notifications
+- [ ] Multi-currency display (EUR, GBP, etc.)
+- [ ] Recurring contribution tracking
+- [ ] Category / tag system
 
-## Technologies Used
+## Tech Stack
 
-- **Next.js 15** - React framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **Lucide React** - Icons
-- **Radix UI** - Accessible components
-- **Class Variance Authority** - Component variants
+| Layer | Library |
+|-------|---------|
+| Framework | Next.js 15 |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| Icons | Lucide React |
+| Components | Radix UI |
+| Charts | Custom SVG |
+| Storage | localStorage |
 
 ## License
 
-MIT License - feel free to use for personal or commercial projects!
+MIT — free to use for personal or commercial projects.

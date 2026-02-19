@@ -12,32 +12,60 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const TROY_OZ_TO_GRAMS = 31.1035;
 
 function projectAssetValue(asset: Asset, prices: Prices, targetDate: Date): number {
-  const start = asset.startDate ? new Date(asset.startDate) : new Date(asset.createdAt);
+  // Mirror calculateMonthsElapsed from calculations.ts exactly
+  const getCompleteMonths = (startStr: string, endDate: Date): number => {
+    const start = new Date(startStr);
+    const diffMs = endDate.getTime() - start.getTime();
+    const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44); // matches calculations.ts constant
+    return Math.floor(Math.max(0, diffMonths));
+  };
+
+  // Clamp targetDate to endDate if set
   const end = asset.endDate ? new Date(asset.endDate) : null;
   const effective = end && targetDate > end ? end : targetDate;
 
   switch (asset.type) {
-    case "cash": return asset.amount;
-    case "usd": return asset.amount * prices.usdToEgp;
+    case "cash":
+      return asset.amount;
+
+    case "usd":
+      return asset.amount * prices.usdToEgp;
+
     case "gold": {
-      const purity = asset.purity ?? 24;
-      return asset.amount * (prices.gold.egp / TROY_OZ_TO_GRAMS) * (purity / 24);
+      // Matches calculateAssetValue gold branch exactly
+      const purityFactor = (asset.purity ?? 24) / 24;
+      return ((asset.amount * prices.gold.egp) / TROY_OZ_TO_GRAMS) * purityFactor;
     }
-    case "silver": return asset.amount * (prices.silver.egp / TROY_OZ_TO_GRAMS);
+
+    case "silver":
+      // Matches calculateAssetValue silver branch exactly
+      return (asset.amount * prices.silver.egp) / TROY_OZ_TO_GRAMS;
+
     case "rent": {
-      if (!asset.monthlyRent) return 0;
-      const monthsElapsed = Math.max(0, (effective.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.4375));
-      return asset.monthlyRent * monthsElapsed;
+      if (!asset.monthlyRent || !asset.startDate) return 0;
+      const completeMonths = getCompleteMonths(asset.startDate, effective);
+      return asset.monthlyRent * completeMonths;
     }
+
+    case "salary": {
+      if (!asset.monthlySalary || !asset.startDate) return 0;
+      const completeMonths = getCompleteMonths(asset.startDate, effective);
+      return asset.monthlySalary * completeMonths;
+    }
+
     case "interest": {
-      if (!asset.principal || !asset.interestRate) return 0;
+      if (!asset.principal || !asset.interestRate || !asset.interestType) return asset.amount || 0;
       const P = asset.principal;
-      const r = asset.interestRate / 100;
-      const yearsElapsed = Math.max(0, (effective.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
-      if (asset.interestType === "compound") return P * Math.pow(1 + r / 12, yearsElapsed * 12);
-      return P * (1 + r * yearsElapsed);
+      const monthlyRate = asset.interestRate / 100 / 12;
+      const completeMonths = asset.startDate ? getCompleteMonths(asset.startDate, effective) : 0;
+      // Matches calculateInterestAccumulation exactly
+      return asset.interestType === "simple"
+        ? P + P * monthlyRate * completeMonths
+        : P * Math.pow(1 + monthlyRate, completeMonths);
     }
-    default: return 0;
+
+    default:
+      return 0;
   }
 }
 
@@ -182,12 +210,15 @@ export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChar
       </div>
 
       {/* Chart area — SVG + transparent HTML column overlay */}
-      <div className="relative w-full">
+      <div className="relative w-full h-52 sm:h-auto">
         {/* SVG — pure rendering only, no events */}
+        {/* height class: taller on mobile (h-56 = 224px), auto on sm+ so viewBox scales naturally */}
         <svg
           width="100%"
+          height="100%"
           viewBox={`0 0 ${W} ${H}`}
-          style={{ display: "block", overflow: "visible", pointerEvents: "none" }}
+          className="block h-52 sm:h-auto"
+          style={{ overflow: "visible", pointerEvents: "none" }}
         >
           <defs>
             <linearGradient id="mgArea2" x1="0" y1="0" x2="0" y2="1">
@@ -240,11 +271,9 @@ export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChar
         </svg>
 
         {/* Transparent HTML hit columns — absolutely positioned over the SVG */}
-        {/* These use percentage widths matching the SVG point positions */}
         <div
           className="absolute inset-0 flex"
           style={{
-            // Match the SVG left padding so columns align with data points
             paddingLeft: `${(PAD.left / W) * 100}%`,
             paddingRight: `${(PAD.right / W) * 100}%`,
           }}
