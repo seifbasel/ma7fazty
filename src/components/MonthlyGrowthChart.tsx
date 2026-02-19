@@ -117,13 +117,13 @@ export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChar
   const momChange = prevValue !== null && active ? active.value - prevValue : null;
 
   return (
-    <div className="relative bg-gradient-to-br from-slate-900/80 to-slate-800/40 border border-slate-700/50 rounded-3xl p-4 sm:p-6 overflow-hidden">
+    <div className="relative bg-linear-to-br from-slate-900/80 to-slate-800/40 border border-slate-700/50 rounded-3xl p-4 sm:p-6 overflow-hidden">
       <div className="absolute -top-10 -right-10 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
       <div className="flex items-start justify-between mb-4 sm:mb-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
             <span className="text-base sm:text-lg">📈</span>
           </div>
           <div>
@@ -299,7 +299,7 @@ export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChar
             return (
               <div
                 key={i}
-                className="flex-shrink-0 w-9 sm:flex-1 sm:w-auto text-center px-0.5 py-1.5 rounded-lg transition-colors duration-100 cursor-default"
+                className="shrink-0 w-9 sm:flex-1 sm:w-auto text-center px-0.5 py-1.5 rounded-lg transition-colors duration-100 cursor-default"
                 style={{ backgroundColor: activeIndex === i + 1 ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)" }}
                 onMouseEnter={() => setActiveIndex(i + 1)}
                 onMouseLeave={() => setActiveIndex(null)}
