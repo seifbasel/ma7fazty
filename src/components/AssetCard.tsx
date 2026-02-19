@@ -1,5 +1,5 @@
 import { Asset, Prices } from "@/types/asset";
-import { calculateAssetValue } from "@/lib/calculations";
+import { calculateAssetValue, calculateProjectedRentValue, calculateProjectedInterestValue } from "@/lib/calculations";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,7 +11,7 @@ export default function AssetCard({
 }: {
   asset: Asset;
   prices: Prices;
-  onDelete: (id: number) => void;
+  onDelete: (id: number, name: string) => void;
   onEdit: (asset: Asset) => void;
 }) {
   const value = calculateAssetValue(asset, prices);
@@ -24,6 +24,10 @@ export default function AssetCard({
         return "🥈";
       case "usd":
         return "💵";
+      case "rent":
+        return "🏠";
+      case "interest":
+        return "📈";
       case "cash":
       default:
         return "💰";
@@ -38,6 +42,10 @@ export default function AssetCard({
         return "text-slate-300";
       case "usd":
         return "text-green-400";
+      case "rent":
+        return "text-blue-400";
+      case "interest":
+        return "text-purple-400";
       case "cash":
       default:
         return "text-emerald-400";
@@ -74,7 +82,7 @@ export default function AssetCard({
           <Button
             size="icon-sm"
             variant="ghost"
-            onClick={() => onDelete(asset.id)}
+            onClick={() => onDelete(asset.id, asset.name)}
             className="bg-red-500/20 text-red-400"
           >
             <Trash2 className="w-5 h-5" />
@@ -83,27 +91,72 @@ export default function AssetCard({
       </div>
 
       <div className="space-y-2">
-        <div className="flex justify-between items-baseline">
-          <p className="text-sm text-slate-500">Amount:</p>
-          <p className="text-white font-medium">
-            {formatAmount(asset.amount, asset.unit)}
-          </p>
-        </div>
-        
-        <div className="flex justify-between items-baseline pt-2 border-t border-slate-700/50">
-          <p className="text-sm text-slate-500">Value:</p>
-          <p className={`text-xl font-bold ${getTypeColor(asset.type)}`}>
-            {value.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })} EGP
-          </p>
-        </div>
+        {asset.type !== "rent" && (
+          <div className="flex justify-between items-baseline">
+            <p className="text-sm text-slate-500">Amount:</p>
+            <p className="text-white font-medium">
+              {asset.type === "interest"
+                ? `Principal: ${asset.principal?.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })} EGP`
+                : formatAmount(asset.amount, asset.unit)}
+            </p>
+          </div>
+        )}
+
+        {asset.type === "interest" && (
+          <div className="flex justify-between items-baseline">
+            <p className="text-sm text-slate-500">Rate:</p>
+            <p className="text-white font-medium">
+              {asset.interestRate}% ({asset.interestType === "simple" ? "Simple" : "Compound"})
+            </p>
+          </div>
+        )}
+
+        {(asset.type === "rent" || asset.type === "interest") ? (
+          <>
+            <div className="flex justify-between items-baseline pt-2 border-t border-slate-700/50">
+              <p className="text-sm text-slate-500">Current Value:</p>
+              <p className={`text-lg font-bold ${getTypeColor(asset.type)}`}>
+                {value.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })} EGP
+              </p>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <p className="text-sm text-slate-500">Total Value:</p>
+              <p className={`text-xl font-bold ${getTypeColor(asset.type)}`}>
+                {(asset.type === "rent"
+                  ? calculateProjectedRentValue(asset)
+                  : calculateProjectedInterestValue(asset)
+                ).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })} EGP
+              </p>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-between items-baseline pt-2 border-t border-slate-700/50">
+            <p className="text-sm text-slate-500">Value:</p>
+            <p className={`text-xl font-bold ${getTypeColor(asset.type)}`}>
+              {value.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} EGP
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-3 pt-3 border-t border-slate-700/30">
         <p className="text-xs text-slate-600">
           Added {new Date(asset.createdAt).toLocaleDateString()}
+          {asset.endDate && (
+            <> • Ends {new Date(asset.endDate).toLocaleDateString()}</>
+          )}
         </p>
       </div>
     </div>
