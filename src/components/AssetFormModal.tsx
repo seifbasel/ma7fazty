@@ -17,9 +17,7 @@ export default function AssetFormModal({
   onOpenChange,
   onSave,
 }: AssetFormModalProps) {
-  const handleClose = () => {
-    onOpenChange(false);
-  };
+  const handleClose = () => onOpenChange(false);
 
   const handleSave = (asset: Asset) => {
     onSave(asset);
@@ -30,10 +28,13 @@ export default function AssetFormModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent onClose={handleClose}>
         <DialogHeader>
-          <DialogTitle>{editingAsset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
+          <DialogTitle>
+            <span className="text-xl">{editingAsset ? "✏️" : "➕"}</span>
+            {editingAsset ? "Edit Asset" : "Add New Asset"}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <AssetForm
             onSave={handleSave}
             editingAsset={editingAsset}

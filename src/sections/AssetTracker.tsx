@@ -14,6 +14,7 @@ import AssetForm from "@/components/AssetForm";
 import AssetFormModal from "@/components/AssetFormModal";
 import AssetGrid from "@/components/AssetGrid";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import MonthlyGrowthChart from "@/components/MonthlyGrowthChart";
 
 export default function AssetTracker() {
   const prices = usePrices();
@@ -61,9 +62,19 @@ export default function AssetTracker() {
         <Header />
         <LivePrices prices={prices} />
 
-        <div className="grid md:grid-cols-2 gap-8 mb-8">
-          <PortfolioCard total={total} count={assets.length} />
+        <div className="grid md:grid-cols-2 mt-8 gap-6">
+          <PortfolioCard
+            total={total}
+            count={assets.length}
+            assets={assets}
+            prices={prices}
+          />
           <AssetDistribution assets={assets} prices={prices} />
+        </div>
+
+        {/* Full-width monthly growth chart */}
+        <div className="mb-8 mt-8">
+          <MonthlyGrowthChart assets={assets} prices={prices} />
         </div>
 
         <AssetForm
