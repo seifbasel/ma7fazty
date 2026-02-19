@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Asset } from "@/types/asset";
+import { getTypeOptions } from "@/lib/assetTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,17 +11,25 @@ export default function AssetForm({
   onSave,
   editingAsset,
   onCancel,
+  isModal = false,
 }: {
   onSave: (asset: Asset) => void;
   editingAsset?: Asset | null;
   onCancel: () => void;
+  isModal?: boolean;
 }) {
   const defaultForm = {
     name: "",
-    type: "cash" as "gold" | "silver" | "usd" | "cash",
+    type: "cash" as "gold" | "silver" | "usd" | "cash" | "rent" | "interest",
     amount: "",
     unit: "EGP",
     purity: 24 as 18 | 21 | 22 | 24,
+    monthlyRent: "",
+    principal: "",
+    interestRate: "",
+    interestType: "simple" as "simple" | "compound",
+    startDate: "",
+    endDate: "",
   };
 
   const [form, setForm] = useState(defaultForm);
@@ -29,10 +38,16 @@ export default function AssetForm({
     if (editingAsset) {
       setForm({
         name: editingAsset.name,
-        type: editingAsset.type,
+        type: editingAsset.type as any,
         amount: editingAsset.amount.toString(),
         unit: editingAsset.unit,
         purity: editingAsset.purity ?? 24,
+        monthlyRent: editingAsset.monthlyRent?.toString() || "",
+        principal: editingAsset.principal?.toString() || "",
+        interestRate: editingAsset.interestRate?.toString() || "",
+        interestType: editingAsset.interestType || "simple",
+        startDate: editingAsset.startDate || "",
+        endDate: editingAsset.endDate || "",
       });
     } else {
       setForm(defaultForm);
@@ -52,6 +67,8 @@ export default function AssetForm({
         newUnit = "USD";
         break;
       case "cash":
+      case "rent":
+      case "interest":
         newUnit = "EGP";
         break;
     }
@@ -62,33 +79,57 @@ export default function AssetForm({
   }, [form.type, form.unit]);
 
   const handleSubmit = () => {
-    if (!form.name || !form.amount) return;
+    if (!form.name) return;
 
-    onSave({
+    // Validate based on asset type
+    if (form.type === "rent") {
+      if (!form.monthlyRent || !form.startDate) return;
+    } else if (form.type === "interest") {
+      if (!form.principal || !form.interestRate || !form.startDate) return;
+    } else {
+      if (!form.amount) return;
+    }
+
+    const asset: Asset = {
       id: editingAsset?.id || Date.now(),
       name: form.name,
-      type: form.type,
-      amount: parseFloat(form.amount),
+      type: form.type as any,
+      amount: form.type === "rent" ? parseFloat(form.monthlyRent) : form.type === "interest" ? parseFloat(form.principal) : parseFloat(form.amount),
       unit: form.unit,
       purity: form.type === "gold" ? form.purity : undefined,
       createdAt: editingAsset?.createdAt || new Date().toISOString(),
-    });
+    };
 
+    // Add type-specific fields
+    if (form.type === "rent") {
+      asset.monthlyRent = parseFloat(form.monthlyRent);
+      asset.startDate = form.startDate;
+      if (form.endDate) {
+        asset.endDate = form.endDate;
+      }
+    } else if (form.type === "interest") {
+      asset.principal = parseFloat(form.principal);
+      asset.interestRate = parseFloat(form.interestRate);
+      asset.interestType = form.interestType as "simple" | "compound";
+      asset.startDate = form.startDate;
+      if (form.endDate) {
+        asset.endDate = form.endDate;
+      }
+    }
+
+    onSave(asset);
     setForm(defaultForm);
   };
 
-  const typeOptions = [
-    { value: "cash", label: "Cash (EGP)", icon: "💵" },
-    { value: "usd", label: "US Dollar", icon: "💵" },
-    { value: "gold", label: "Gold", icon: "🪙" },
-    { value: "silver", label: "Silver", icon: "🥈" },
-  ];
+  const typeOptions = getTypeOptions();
 
   return (
-    <div className="card-gradient rounded-3xl p-8 mb-8">
-      <h2 className="text-2xl font-bold mb-6 text-white">
-        {editingAsset ? "Edit Asset" : "Add New Asset"}
-      </h2>
+    <div className={isModal ? "" : "card-gradient rounded-3xl p-8 mb-8"}>
+      {!isModal && (
+        <h2 className="text-2xl font-bold mb-6 text-white">
+          {editingAsset ? "Edit Asset" : "Add New Asset"}
+        </h2>
+      )}
 
       <div className="grid md:grid-cols-2 gap-6">
         <div>
@@ -116,17 +157,112 @@ export default function AssetForm({
           </select>
         </div>
 
-        <div>
-          <Label className="text-slate-300 mb-2">Amount ({form.unit})</Label>
-          <Input
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={form.amount}
-            onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            className="bg-slate-900/50 border-slate-700 text-white"
-          />
-        </div>
+        {form.type !== "rent" && form.type !== "interest" && (
+          <div>
+            <Label className="text-slate-300 mb-2">Amount ({form.unit})</Label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              className="bg-slate-900/50 border-slate-700 text-white"
+            />
+          </div>
+        )}
+
+        {form.type === "rent" && (
+          <>
+            <div>
+              <Label className="text-slate-300 mb-2">Monthly Rent (EGP)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={form.monthlyRent}
+                onChange={(e) => setForm({ ...form, monthlyRent: e.target.value })}
+                className="bg-slate-900/50 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-slate-300 mb-2">Start Date</Label>
+              <Input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                className="bg-slate-900/50 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-slate-300 mb-2">End Date (Optional)</Label>
+              <Input
+                type="date"
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                className="bg-slate-900/50 border-slate-700 text-white"
+              />
+            </div>
+          </>
+        )}
+
+        {form.type === "interest" && (
+          <>
+            <div>
+              <Label className="text-slate-300 mb-2">Principal (EGP)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={form.principal}
+                onChange={(e) => setForm({ ...form, principal: e.target.value })}
+                className="bg-slate-900/50 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-slate-300 mb-2">Interest Rate (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="5.00"
+                value={form.interestRate}
+                onChange={(e) => setForm({ ...form, interestRate: e.target.value })}
+                className="bg-slate-900/50 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-slate-300 mb-2">Start Date</Label>
+              <Input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                className="bg-slate-900/50 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-slate-300 mb-2">Interest Type</Label>
+              <select
+                value={form.interestType}
+                onChange={(e) =>
+                  setForm({ ...form, interestType: e.target.value as "simple" | "compound" })
+                }
+                className="h-9 w-full rounded-md border border-slate-700 bg-slate-900/50 px-3 py-1 text-sm text-white shadow-xs transition-all outline-none focus-visible:border-amber-500 focus-visible:ring-amber-500/50 focus-visible:ring-[3px]"
+              >
+                <option value="simple">Simple Interest</option>
+                <option value="compound">Compound Interest (Monthly)</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-slate-300 mb-2">End Date (Optional)</Label>
+              <Input
+                type="date"
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                className="bg-slate-900/50 border-slate-700 text-white"
+              />
+            </div>
+          </>
+        )}
+
         {form.type === "gold" && (
           <div>
             <Label className="text-slate-300 mb-2">Gold Purity</Label>

@@ -5,13 +5,25 @@ function calculateMonthsElapsed(startDate: string, endDate?: string): number {
   const start = new Date(startDate);
   const end = endDate ? new Date(endDate) : new Date();
 
-  // If end date is in the future but before today, use end date
-  // If end date is today or past, use end date
-  // If no end date, use today
   const diffMs = end.getTime() - start.getTime();
   const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30.44); // Average month = 30.44 days
 
   return Math.max(0, diffMonths);
+}
+
+// Helper to calculate interest accumulation (simple or compound)
+function calculateInterestAccumulation(
+  principal: number,
+  rate: number,
+  completeMonths: number,
+  isSimple: boolean
+): number {
+  const monthlyRate = rate / 100 / 12;
+  const monthlyInterest = principal * monthlyRate;
+
+  return isSimple
+    ? principal + (monthlyInterest * completeMonths)
+    : principal * Math.pow(1 + monthlyRate, completeMonths);
 }
 
 // Calculate rent account value (from start to today)
@@ -20,12 +32,9 @@ function calculateRentValue(asset: Asset): number {
     return 0;
   }
 
-  // Calculate accumulated rent from start date to today (complete months only)
   const monthsElapsed = calculateMonthsElapsed(asset.startDate);
   const completeMonths = Math.floor(monthsElapsed);
-  const accumulatedRent = asset.monthlyRent * completeMonths;
-
-  return accumulatedRent;
+  return asset.monthlyRent * completeMonths;
 }
 
 // Calculate projected total value for rent (from start to end date)
@@ -34,38 +43,9 @@ export function calculateProjectedRentValue(asset: Asset): number {
     return 0;
   }
 
-  // If end date exists, calculate total from start to end
-  // Otherwise, calculate from start to today
   const monthsElapsed = calculateMonthsElapsed(asset.startDate, asset.endDate);
   const completeMonths = Math.floor(monthsElapsed);
-  const projectedRent = asset.monthlyRent * completeMonths;
-
-  return projectedRent;
-}
-
-// Calculate projected total value for interest (from start to end date)
-export function calculateProjectedInterestValue(asset: Asset): number {
-  if (!asset.principal || !asset.interestRate || !asset.startDate || !asset.interestType) {
-    return asset.amount || 0;
-  }
-
-  const monthsElapsed = calculateMonthsElapsed(asset.startDate, asset.endDate);
-  const completeMonths = Math.floor(monthsElapsed);
-  const rateDecimal = asset.interestRate / 100;
-  const monthlyInterest = asset.principal * rateDecimal / 12;
-
-  let projectedValue: number;
-
-  if (asset.interestType === "simple") {
-    // Simple interest: Principal + (monthly interest × complete months)
-    projectedValue = asset.principal + (monthlyInterest * completeMonths);
-  } else {
-    // Compound interest: Principal × (1 + monthly rate)^complete months
-    const monthRate = rateDecimal / 12;
-    projectedValue = asset.principal * Math.pow(1 + monthRate, completeMonths);
-  }
-
-  return projectedValue;
+  return asset.monthlyRent * completeMonths;
 }
 
 // Calculate interest account value (from start to today)
@@ -76,21 +56,22 @@ function calculateInterestValue(asset: Asset): number {
 
   const monthsElapsed = calculateMonthsElapsed(asset.startDate);
   const completeMonths = Math.floor(monthsElapsed);
-  const rateDecimal = asset.interestRate / 100;
-  const monthlyInterest = asset.principal * rateDecimal / 12;
+  const isSimple = asset.interestType === "simple";
 
-  let accumulatedValue: number;
+  return calculateInterestAccumulation(asset.principal, asset.interestRate, completeMonths, isSimple);
+}
 
-  if (asset.interestType === "simple") {
-    // Simple interest: Principal + (monthly interest × complete months)
-    accumulatedValue = asset.principal + (monthlyInterest * completeMonths);
-  } else {
-    // Compound interest: Principal × (1 + monthly rate)^complete months
-    const monthRate = rateDecimal / 12;
-    accumulatedValue = asset.principal * Math.pow(1 + monthRate, completeMonths);
+// Calculate projected total value for interest (from start to end date)
+export function calculateProjectedInterestValue(asset: Asset): number {
+  if (!asset.principal || !asset.interestRate || !asset.startDate || !asset.interestType) {
+    return asset.amount || 0;
   }
 
-  return accumulatedValue;
+  const monthsElapsed = calculateMonthsElapsed(asset.startDate, asset.endDate);
+  const completeMonths = Math.floor(monthsElapsed);
+  const isSimple = asset.interestType === "simple";
+
+  return calculateInterestAccumulation(asset.principal, asset.interestRate, completeMonths, isSimple);
 }
 
 export function getTotalValue(assets: Asset[], prices: Prices): number {

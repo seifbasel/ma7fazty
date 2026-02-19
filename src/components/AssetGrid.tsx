@@ -9,7 +9,7 @@ export default function AssetGrid({
 }: {
   assets: Asset[];
   prices: Prices;
-  onDelete: (id: number) => void;
+  onDelete: (id: number, name: string) => void;
   onEdit: (asset: Asset) => void;
 }) {
   if (!assets.length)

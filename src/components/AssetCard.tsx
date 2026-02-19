@@ -1,5 +1,6 @@
 import { Asset, Prices } from "@/types/asset";
 import { calculateAssetValue, calculateProjectedRentValue, calculateProjectedInterestValue } from "@/lib/calculations";
+import { getTypeIcon, getTypeColor } from "@/lib/assetTypes";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -15,42 +16,6 @@ export default function AssetCard({
   onEdit: (asset: Asset) => void;
 }) {
   const value = calculateAssetValue(asset, prices);
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "gold":
-        return "🪙";
-      case "silver":
-        return "🥈";
-      case "usd":
-        return "💵";
-      case "rent":
-        return "🏠";
-      case "interest":
-        return "📈";
-      case "cash":
-      default:
-        return "💰";
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "gold":
-        return "text-amber-400";
-      case "silver":
-        return "text-slate-300";
-      case "usd":
-        return "text-green-400";
-      case "rent":
-        return "text-blue-400";
-      case "interest":
-        return "text-purple-400";
-      case "cash":
-      default:
-        return "text-emerald-400";
-    }
-  };
 
   const formatAmount = (amount: number, unit: string) => {
     return `${amount.toLocaleString(undefined, {
