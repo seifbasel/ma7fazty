@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { Asset, Prices } from "@/types/asset";
 
 interface MonthlyGrowthChartProps {
@@ -8,105 +8,58 @@ interface MonthlyGrowthChartProps {
   prices: Prices;
 }
 
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const TROY_OZ_TO_GRAMS = 31.1035;
 
-/**
- * Calculate the projected EGP value of a single asset at a given future date.
- *
- * - cash:     fixed EGP value, no growth
- * - usd:      fixed units × current EGP rate (rate assumed stable)
- * - gold:     grams × price-per-gram at current purity (price assumed stable)
- * - silver:   grams × price-per-gram (price assumed stable)
- * - rent:     monthlyRent × months elapsed from startDate → targetDate
- * - interest simple:   P × (1 + r × t)          where t = years
- * - interest compound: P × (1 + r/12)^months    monthly compounding
- *
- * All dates are clamped to asset.endDate if set.
- */
 function projectAssetValue(asset: Asset, prices: Prices, targetDate: Date): number {
-  const start = asset.startDate
-    ? new Date(asset.startDate)
-    : new Date(asset.createdAt);
+  const start = asset.startDate ? new Date(asset.startDate) : new Date(asset.createdAt);
   const end = asset.endDate ? new Date(asset.endDate) : null;
   const effective = end && targetDate > end ? end : targetDate;
 
   switch (asset.type) {
-    case "cash":
-      return asset.amount;
-
-    case "usd":
-      return asset.amount * prices.usdToEgp;
-
+    case "cash": return asset.amount;
+    case "usd": return asset.amount * prices.usdToEgp;
     case "gold": {
       const purity = asset.purity ?? 24;
-      const pricePerGram = (prices.gold.egp / TROY_OZ_TO_GRAMS) * (purity / 24);
-      return asset.amount * pricePerGram;
+      return asset.amount * (prices.gold.egp / TROY_OZ_TO_GRAMS) * (purity / 24);
     }
-
-    case "silver": {
-      const pricePerGram = prices.silver.egp / TROY_OZ_TO_GRAMS;
-      return asset.amount * pricePerGram;
-    }
-
+    case "silver": return asset.amount * (prices.silver.egp / TROY_OZ_TO_GRAMS);
     case "rent": {
       if (!asset.monthlyRent) return 0;
-      const msPerMonth = 1000 * 60 * 60 * 24 * 30.4375;
-      const monthsElapsed = Math.max(
-        0,
-        (effective.getTime() - start.getTime()) / msPerMonth
-      );
+      const monthsElapsed = Math.max(0, (effective.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.4375));
       return asset.monthlyRent * monthsElapsed;
     }
-
     case "interest": {
       if (!asset.principal || !asset.interestRate) return 0;
       const P = asset.principal;
-      const annualRate = asset.interestRate / 100;
-      const msPerYear = 1000 * 60 * 60 * 24 * 365.25;
-      const yearsElapsed = Math.max(
-        0,
-        (effective.getTime() - start.getTime()) / msPerYear
-      );
-      if (asset.interestType === "compound") {
-        const months = yearsElapsed * 12;
-        return P * Math.pow(1 + annualRate / 12, months);
-      }
-      return P * (1 + annualRate * yearsElapsed);
+      const r = asset.interestRate / 100;
+      const yearsElapsed = Math.max(0, (effective.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+      if (asset.interestType === "compound") return P * Math.pow(1 + r / 12, yearsElapsed * 12);
+      return P * (1 + r * yearsElapsed);
     }
-
-    default:
-      return 0;
+    default: return 0;
   }
 }
 
-/** Build 12 data points, one per month starting from next month. */
 function buildProjection(assets: Asset[], prices: Prices, months = 12) {
   const now = new Date();
   return Array.from({ length: months }, (_, i) => {
     const targetDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
-    const value = assets.reduce(
-      (sum, asset) => sum + projectAssetValue(asset, prices, targetDate),
-      0
-    );
-    return {
-      label: MONTHS[targetDate.getMonth()],
-      year: targetDate.getFullYear(),
-      value: Math.round(value),
-      date: targetDate,
-    };
+    const value = assets.reduce((sum, asset) => sum + projectAssetValue(asset, prices, targetDate), 0);
+    return { label: MONTHS[targetDate.getMonth()], year: targetDate.getFullYear(), value: Math.round(value) };
   });
 }
 
+const fmt = (v: number) => {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+  return v.toFixed(0);
+};
+
 export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChartProps) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const data = useMemo(() => buildProjection(assets, prices, 12), [assets, prices]);
-
   const currentTotal = useMemo(
     () => assets.reduce((sum, a) => sum + projectAssetValue(a, prices, new Date()), 0),
     [assets, prices]
@@ -114,311 +67,230 @@ export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChar
 
   if (!assets.length) return null;
 
-  /* ─── SVG geometry ─────────────────────────────────────────── */
-  const W = 600;
-  const H = 240;
-  const PAD = { top: 28, right: 28, bottom: 44, left: 78 };
+  // All points: index 0 = "Now", 1-12 = future months
+  const allPoints = [
+    { label: "Now", year: new Date().getFullYear(), value: Math.round(currentTotal), isNow: true },
+    ...data.map((d) => ({ ...d, isNow: false })),
+  ];
+
+  const values = allPoints.map((p) => p.value);
+  const minVal = Math.min(...values) * 0.97;
+  const maxVal = Math.max(...values) * 1.02;
+  const range = maxVal - minVal || 1;
+
+  // SVG dimensions — pure rendering, no interaction
+  const W = 560;
+  const H = 200;
+  const PAD = { top: 20, right: 12, bottom: 8, left: 56 };
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
 
-  // Include "Now" as the leftmost reference point
-  type ChartPoint = {
-    x: number;
-    y: number;
-    value: number;
-    label: string;
-    year: number;
-    isNow: boolean;
-  };
-
-  const allValues = [currentTotal, ...data.map((d) => d.value)];
-  const minVal = Math.min(...allValues) * 0.97;
-  const maxVal = Math.max(...allValues) * 1.02;
-  const range = maxVal - minVal || 1;
-
+  const toX = (i: number) => PAD.left + (i / (allPoints.length - 1)) * chartW;
   const toY = (v: number) => PAD.top + chartH - ((v - minVal) / range) * chartH;
 
-  const allPoints: ChartPoint[] = [
-    {
-      x: PAD.left,
-      y: toY(currentTotal),
-      value: Math.round(currentTotal),
-      label: "Now",
-      year: new Date().getFullYear(),
-      isNow: true,
-    },
-    ...data.map((d, i) => ({
-      x: PAD.left + ((i + 1) / data.length) * chartW,
-      y: toY(d.value),
-      value: d.value,
-      label: d.label,
-      year: d.year,
-      isNow: false,
-    })),
-  ];
+  const pts = allPoints.map((p, i) => ({ x: toX(i), y: toY(p.value) }));
 
-  // Smooth cubic bezier
-  const linePath = allPoints.reduce((path, pt, i) => {
+  const linePath = pts.reduce((path, pt, i) => {
     if (i === 0) return `M ${pt.x} ${pt.y}`;
-    const prev = allPoints[i - 1];
+    const prev = pts[i - 1];
     const cpX = (prev.x + pt.x) / 2;
     return path + ` C ${cpX} ${prev.y} ${cpX} ${pt.y} ${pt.x} ${pt.y}`;
   }, "");
 
-  const areaPath =
-    linePath +
-    ` L ${allPoints[allPoints.length - 1].x} ${PAD.top + chartH}` +
-    ` L ${allPoints[0].x} ${PAD.top + chartH} Z`;
+  const areaPath = linePath + ` L ${pts[pts.length - 1].x} ${PAD.top + chartH} L ${pts[0].x} ${PAD.top + chartH} Z`;
 
-  // Y-axis ticks
-  const yTicks = Array.from({ length: 5 }, (_, i) => minVal + (range * i) / 4);
-
-  const fmt = (v: number) => {
-    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
-    return v.toFixed(0);
-  };
+  const yTicks = Array.from({ length: 4 }, (_, i) => minVal + (range * i) / 3);
 
   const finalValue = data[data.length - 1].value;
   const totalGrowth = finalValue - currentTotal;
-  const totalGrowthPct =
-    currentTotal > 0 ? ((totalGrowth / currentTotal) * 100).toFixed(1) : "0.0";
+  const totalGrowthPct = currentTotal > 0 ? ((totalGrowth / currentTotal) * 100).toFixed(1) : "0.0";
   const isPositive = totalGrowth >= 0;
 
-  const hovered = hoveredIndex !== null ? allPoints[hoveredIndex] : null;
+  const active = activeIndex !== null ? allPoints[activeIndex] : null;
+  const activePt = activeIndex !== null ? pts[activeIndex] : null;
 
-  /* ─── Render ────────────────────────────────────────────────── */
+  // Tooltip info
+  const growthFromNow = active && !active.isNow ? active.value - currentTotal : null;
+  const growthPct = growthFromNow !== null && currentTotal > 0
+    ? ((growthFromNow / currentTotal) * 100).toFixed(1) : null;
+  const prevValue = activeIndex !== null && activeIndex > 0 ? allPoints[activeIndex - 1].value : null;
+  const momChange = prevValue !== null && active ? active.value - prevValue : null;
+
   return (
-    <div className="relative bg-linear-to-br from-slate-900/80 to-slate-800/40 border border-slate-700/50 rounded-3xl p-6 overflow-hidden">
+    <div className="relative bg-gradient-to-br from-slate-900/80 to-slate-800/40 border border-slate-700/50 rounded-3xl p-4 sm:p-6 overflow-hidden">
       <div className="absolute -top-10 -right-10 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-            <span className="text-lg">📈</span>
+      <div className="flex items-start justify-between mb-4 sm:mb-5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
+            <span className="text-base sm:text-lg">📈</span>
           </div>
           <div>
             <p className="text-sm font-bold text-white">12-Month Projection</p>
-            <p className="text-xs text-slate-500">
-              Estimated portfolio value — next 12 months
-            </p>
+            <p className="text-xs text-slate-500">Next 12 months forecast</p>
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0 ml-2">
           <p className={`text-sm font-bold ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-            {isPositive ? "+" : ""}
-            {fmt(totalGrowth)} EGP
+            {isPositive ? "+" : ""}{fmt(totalGrowth)} EGP
           </p>
           <p className={`text-xs ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-            {isPositive ? "▲" : "▼"} {Math.abs(Number(totalGrowthPct))}% over 12 months
+            {isPositive ? "▲" : "▼"} {Math.abs(Number(totalGrowthPct))}% total
           </p>
         </div>
       </div>
 
-      {/* SVG Chart */}
-      <svg
-        width="100%"
-        viewBox={`0 0 ${W} ${H}`}
-        onMouseLeave={() => setHoveredIndex(null)}
-        style={{ display: "block", overflow: "visible" }}
+      {/* Tooltip card — shown above chart when active */}
+      <div
+        className="mb-3 transition-all duration-150"
+        style={{ minHeight: "3rem" }}
       >
-        <defs>
-          <linearGradient id="mgArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
-          </linearGradient>
-          <linearGradient id="mgLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#6ee7b7" />
-            <stop offset="100%" stopColor="#14b8a6" />
-          </linearGradient>
-          <filter id="mgGlow">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        {/* Grid + Y labels */}
-        {yTicks.map((v, i) => (
-          <g key={i}>
-            <line
-              x1={PAD.left}
-              y1={toY(v)}
-              x2={PAD.left + chartW}
-              y2={toY(v)}
-              stroke="rgba(148,163,184,0.07)"
-              strokeDasharray="4 4"
-            />
-            <text
-              x={PAD.left - 8}
-              y={toY(v)}
-              textAnchor="end"
-              dominantBaseline="middle"
-              fontSize="10"
-              fill="rgb(71,85,105)"
-            >
-              {fmt(v)}
-            </text>
-          </g>
-        ))}
-
-        {/* "Now" dashed vertical */}
-        <line
-          x1={PAD.left}
-          y1={PAD.top}
-          x2={PAD.left}
-          y2={PAD.top + chartH}
-          stroke="rgba(148,163,184,0.18)"
-          strokeDasharray="3 3"
-        />
-
-        {/* Area + Line */}
-        <path d={areaPath} fill="url(#mgArea)" />
-        <path
-          d={linePath}
-          fill="none"
-          stroke="url(#mgLine)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* X labels + hover hit areas */}
-        {allPoints.map((pt, i) => (
-          <g key={i}>
-            <text
-              x={pt.x}
-              y={PAD.top + chartH + 18}
-              textAnchor="middle"
-              fontSize="10"
-              fontWeight={pt.isNow ? "700" : "400"}
-              fill={
-                hoveredIndex === i
-                  ? "rgb(52,211,153)"
-                  : pt.isNow
-                  ? "rgb(148,163,184)"
-                  : "rgb(71,85,105)"
-              }
-            >
-              {pt.label}
-            </text>
-            {/* Show year under Jan or first point */}
-            {(pt.label === "Jan" || i === 0) && (
-              <text
-                x={pt.x}
-                y={PAD.top + chartH + 32}
-                textAnchor="middle"
-                fontSize="8"
-                fill="rgb(51,65,85)"
-              >
-                {pt.year}
-              </text>
-            )}
-            <rect
-              x={i === 0 ? pt.x - 20 : pt.x - chartW / (allPoints.length * 2)}
-              y={PAD.top}
-              width={i === 0 ? 40 : chartW / allPoints.length}
-              height={chartH}
-              fill="transparent"
-              onMouseEnter={() => setHoveredIndex(i)}
-              style={{ cursor: "crosshair" }}
-            />
-          </g>
-        ))}
-
-        {/* Hover UI */}
-        {hovered && (
-          <g>
-            <line
-              x1={hovered.x}
-              y1={PAD.top}
-              x2={hovered.x}
-              y2={PAD.top + chartH}
-              stroke="rgba(52,211,153,0.2)"
-              strokeWidth="1"
-              strokeDasharray="4 3"
-            />
-            <circle cx={hovered.x} cy={hovered.y} r="6" fill="#10b981" filter="url(#mgGlow)" />
-            <circle cx={hovered.x} cy={hovered.y} r="3" fill="white" />
-
-            {/* Tooltip */}
-            {(() => {
-              const growthFromNow = hovered.isNow ? null : hovered.value - currentTotal;
-              const growthPct =
-                growthFromNow !== null && currentTotal > 0
-                  ? ((growthFromNow / currentTotal) * 100).toFixed(1)
-                  : null;
-              const prevPt = hoveredIndex! > 0 ? allPoints[hoveredIndex! - 1] : null;
-              const momChange = prevPt ? hovered.value - prevPt.value : null;
-
-              const lines = [
-                { text: hovered.isNow ? "Today" : `${hovered.label} ${hovered.year}`, color: "rgb(100,116,139)", size: 10 },
-                { text: `${hovered.value.toLocaleString()} EGP`, color: "white", size: 12, bold: true },
-                ...(growthFromNow !== null
-                  ? [{
-                      text: `${growthFromNow >= 0 ? "+" : ""}${fmt(growthFromNow)} EGP from now (${growthFromNow >= 0 ? "+" : ""}${growthPct}%)`,
-                      color: growthFromNow >= 0 ? "rgb(52,211,153)" : "rgb(248,113,113)",
-                      size: 9,
-                    }]
-                  : []),
-                ...(momChange !== null && !hovered.isNow
-                  ? [{
-                      text: `${momChange >= 0 ? "+" : ""}${fmt(momChange)} vs prev month`,
-                      color: momChange >= 0 ? "rgb(52,211,153)" : "rgb(248,113,113)",
-                      size: 9,
-                    }]
-                  : []),
-              ];
-
-              const ttW = 170;
-              const ttH = 18 + lines.length * 16;
-              const ttX = Math.min(Math.max(hovered.x - ttW / 2, PAD.left), PAD.left + chartW - ttW);
-              const ttY = hovered.y - ttH - 12;
-
-              return (
-                <g>
-                  <rect x={ttX} y={ttY} width={ttW} height={ttH} rx="8" fill="rgb(2,6,23)" stroke="rgba(52,211,153,0.2)" strokeWidth="1" />
-                  {lines.map((l, li) => (
-                    <text
-                      key={li}
-                      x={ttX + 10}
-                      y={ttY + 14 + li * 16}
-                      fontSize={l.size}
-                      fontWeight={(l as any).bold ? "700" : "400"}
-                      fill={l.color}
-                    >
-                      {l.text}
-                    </text>
-                  ))}
-                </g>
-              );
-            })()}
-          </g>
+        {active ? (
+          <div className="flex items-center justify-between bg-slate-900/80 border border-emerald-500/20 rounded-2xl px-4 py-2.5">
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                {active.isNow ? "Today" : `${active.label} ${active.year}`}
+              </p>
+              <p className="text-base font-bold text-white tabular-nums">
+                {active.value.toLocaleString()} EGP
+              </p>
+            </div>
+            <div className="text-right">
+              {growthFromNow !== null && (
+                <p className={`text-xs font-semibold ${growthFromNow >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {growthFromNow >= 0 ? "+" : ""}{fmt(growthFromNow)} EGP from now
+                </p>
+              )}
+              {momChange !== null && !active.isNow && (
+                <p className={`text-xs ${momChange >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  {momChange >= 0 ? "+" : ""}{fmt(momChange)} vs prev month
+                </p>
+              )}
+              {active.isNow && (
+                <p className="text-xs text-slate-600">Current value</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center bg-slate-900/40 border border-slate-800/60 rounded-2xl px-4 py-2.5">
+            <p className="text-xs text-slate-600">
+              Tap or hover any month to see details
+            </p>
+          </div>
         )}
+      </div>
 
-        {/* Static dots */}
-        {allPoints.map((pt, i) => (
-          <circle
-            key={i}
-            cx={pt.x}
-            cy={pt.y}
-            r={pt.isNow ? 4 : 2.5}
-            fill={pt.isNow ? "rgb(100,116,139)" : "#10b981"}
-            opacity={hoveredIndex === i ? 0 : 0.65}
-            style={{ pointerEvents: "none" }}
-          />
+      {/* Chart area — SVG + transparent HTML column overlay */}
+      <div className="relative w-full">
+        {/* SVG — pure rendering only, no events */}
+        <svg
+          width="100%"
+          viewBox={`0 0 ${W} ${H}`}
+          style={{ display: "block", overflow: "visible", pointerEvents: "none" }}
+        >
+          <defs>
+            <linearGradient id="mgArea2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="mgLine2" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#6ee7b7" />
+              <stop offset="100%" stopColor="#14b8a6" />
+            </linearGradient>
+            <filter id="mgGlow2" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+
+          {/* Y grid + labels */}
+          {yTicks.map((v, i) => (
+            <g key={i}>
+              <line x1={PAD.left} y1={toY(v)} x2={PAD.left + chartW} y2={toY(v)} stroke="rgba(148,163,184,0.07)" strokeDasharray="4 4" />
+              <text x={PAD.left - 6} y={toY(v)} textAnchor="end" dominantBaseline="middle" fontSize="9" fill="rgb(71,85,105)">
+                {fmt(v)}
+              </text>
+            </g>
+          ))}
+
+          {/* "Now" dashed marker */}
+          <line x1={pts[0].x} y1={PAD.top} x2={pts[0].x} y2={PAD.top + chartH} stroke="rgba(148,163,184,0.18)" strokeDasharray="3 3" />
+
+          {/* Area + line */}
+          <path d={areaPath} fill="url(#mgArea2)" />
+          <path d={linePath} fill="none" stroke="url(#mgLine2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+          {/* Active crosshair + dot */}
+          {activePt && (
+            <g>
+              <line x1={activePt.x} y1={PAD.top} x2={activePt.x} y2={PAD.top + chartH} stroke="rgba(52,211,153,0.25)" strokeWidth="1" strokeDasharray="4 3" />
+              <circle cx={activePt.x} cy={activePt.y} r="7" fill="#10b981" filter="url(#mgGlow2)" />
+              <circle cx={activePt.x} cy={activePt.y} r="3.5" fill="white" />
+            </g>
+          )}
+
+          {/* Static dots */}
+          {pts.map((pt, i) => (
+            <circle key={i} cx={pt.x} cy={pt.y} r={allPoints[i].isNow ? 4 : 2.5}
+              fill={allPoints[i].isNow ? "rgb(100,116,139)" : "#10b981"}
+              opacity={activeIndex === i ? 0 : 0.6}
+            />
+          ))}
+        </svg>
+
+        {/* Transparent HTML hit columns — absolutely positioned over the SVG */}
+        {/* These use percentage widths matching the SVG point positions */}
+        <div
+          className="absolute inset-0 flex"
+          style={{
+            // Match the SVG left padding so columns align with data points
+            paddingLeft: `${(PAD.left / W) * 100}%`,
+            paddingRight: `${(PAD.right / W) * 100}%`,
+          }}
+        >
+          {allPoints.map((_, i) => (
+            <button
+              key={i}
+              className="flex-1 h-full cursor-crosshair"
+              style={{ background: "transparent", border: "none", padding: 0 }}
+              onMouseEnter={() => setActiveIndex(i)}
+              onMouseLeave={() => setActiveIndex(null)}
+              onTouchStart={() => setActiveIndex(i)}
+              onTouchEnd={() => setActiveIndex(null)}
+              aria-label={`View ${allPoints[i].label} data`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* X-axis month labels — HTML row, much easier to control on mobile */}
+      <div
+        className="flex mt-1"
+        style={{
+          paddingLeft: `${(PAD.left / W) * 100}%`,
+          paddingRight: `${(PAD.right / W) * 100}%`,
+        }}
+      >
+        {allPoints.map((p, i) => (
+          <div key={i} className="flex-1 text-center">
+            <p
+              className="text-[9px] sm:text-[10px] font-medium transition-colors duration-100 truncate"
+              style={{ color: activeIndex === i ? "rgb(52,211,153)" : p.isNow ? "rgb(148,163,184)" : "rgb(71,85,105)" }}
+            >
+              {/* Hide every other label on very small displays */}
+              {i % 2 === 0 || i === allPoints.length - 1 ? p.label : ""}
+            </p>
+          </div>
         ))}
-      </svg>
+      </div>
 
-      {/* Month-over-month strip */}
-      <div className="mt-2 pt-4 border-t border-slate-800/60">
+      {/* Month-over-month strip — horizontally scrollable on mobile */}
+      <div className="mt-4 pt-3 border-t border-slate-800/60">
         <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-2 font-semibold">
-          Month-over-month growth
+          Month-over-month
         </p>
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
           {data.map((d, i) => {
             const prev = i === 0 ? currentTotal : data[i - 1].value;
             const change = d.value - prev;
@@ -427,19 +299,13 @@ export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChar
             return (
               <div
                 key={i}
-                className="flex-1 text-center px-0.5 py-1.5 rounded-lg transition-colors"
-                style={{
-                  backgroundColor:
-                    hoveredIndex === i + 1
-                      ? "rgba(16,185,129,0.08)"
-                      : "rgba(255,255,255,0.02)",
-                }}
+                className="flex-shrink-0 w-9 sm:flex-1 sm:w-auto text-center px-0.5 py-1.5 rounded-lg transition-colors duration-100 cursor-default"
+                style={{ backgroundColor: activeIndex === i + 1 ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)" }}
+                onMouseEnter={() => setActiveIndex(i + 1)}
+                onMouseLeave={() => setActiveIndex(null)}
               >
-                <p className="text-[9px] text-slate-600 mb-0.5">{d.label}</p>
-                <p
-                  className="text-[9px] font-bold"
-                  style={{ color: isPos ? "rgb(52,211,153)" : "rgb(248,113,113)" }}
-                >
+                <p className="text-[8px] text-slate-600 mb-0.5">{d.label}</p>
+                <p className="text-[9px] font-bold" style={{ color: isPos ? "rgb(52,211,153)" : "rgb(248,113,113)" }}>
                   {isPos ? "+" : ""}{pct}%
                 </p>
               </div>
@@ -449,7 +315,7 @@ export default function MonthlyGrowthChart({ assets, prices }: MonthlyGrowthChar
       </div>
 
       <p className="text-[10px] text-slate-700 mt-3 text-center">
-        Projection based on current holdings. Market prices (gold, silver, USD) assumed stable. Rent &amp; interest calculated from their start dates.
+        Projection based on current holdings. Market prices assumed stable.
       </p>
     </div>
   );
