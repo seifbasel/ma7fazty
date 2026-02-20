@@ -135,7 +135,7 @@ export default function AssetCard({
           </div>
         </div>
 
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="flex gap-1 opacity-80 group-hover:opacity-100 transition-opacity duration-100">
           <button
             onClick={() => onEdit(asset)}
             className="p-1.5 rounded-lg hover:bg-blue-500/20 text-slate-500 hover:text-blue-400 transition-colors"
