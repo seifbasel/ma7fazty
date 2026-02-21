@@ -1,58 +1,42 @@
 import { NextResponse } from "next/server";
 
-export const revalidate = 86400; // Cache the entire route for 24 hours
+export const revalidate = 3600;
 
 export async function GET() {
   try {
-    const [goldRes, silverRes, fxRes] = await Promise.all([
-      fetch("https://www.goldapi.io/api/XAU/USD", {
-        headers: { "x-access-token": process.env.GOLD_API_KEY! },
-        next: { revalidate: 86400 },
-      }),
-      fetch("https://www.goldapi.io/api/XAG/USD", {
-        headers: { "x-access-token": process.env.GOLD_API_KEY! },
-        next: { revalidate: 86400 },
-      }),
-      fetch("https://open.er-api.com/v6/latest/USD", {
-        next: { revalidate: 86400 },
-      }),
-    ]);
+    const res = await fetch(
+      "https://goldpricez.com/api/rates/currency/egp/measure/ounce/metal/all",
+      {
+        headers: { "X-API-KEY": process.env.GOLDPRICEZ_API_KEY! },
+        next: { revalidate: 3600 },
+      }
+    );
 
-    if (!goldRes.ok) throw new Error("Gold API failed");
-    if (!silverRes.ok) throw new Error("Silver API failed");
-    if (!fxRes.ok) throw new Error("FX API failed");
+    if (!res.ok) {
+      throw new Error(`GoldPriceZ responded ${res.status}: ${await res.text()}`);
+    }
 
-    const [goldData, silverData, fxData] = await Promise.all([
-      goldRes.json(),
-      silverRes.json(),
-      fxRes.json(),
-    ]);
+    // The API returns a JSON-encoded string — parse it twice
+    const raw = await res.text();
+    const d = JSON.parse(typeof JSON.parse(raw) === "string" ? JSON.parse(raw) : raw);
 
-    const usdToEgp = fxData?.rates?.EGP;
-    if (!usdToEgp) throw new Error("EGP rate missing from FX response");
+    const goldUSD: number  = parseFloat(d.ounce_price_usd);
+    const goldEGP: number  = parseFloat(d.ounce_in_egp);
+    const usdToEgp: number = parseFloat(d.usd_to_egp);
+    const silverEGP: number = parseFloat(d.silver_ounce_in_egp);
+    const silverUSD: number = usdToEgp > 0 ? silverEGP / usdToEgp : 0;
 
-    const goldUSD = goldData?.price;
-    const silverUSD = silverData?.price;
-    if (!goldUSD || !silverUSD) throw new Error("Metal price missing");
+    if (!goldUSD || !goldEGP || !usdToEgp || !silverEGP) {
+      throw new Error(`Parsed values invalid: goldUSD=${goldUSD} goldEGP=${goldEGP} usdToEgp=${usdToEgp} silverEGP=${silverEGP}`);
+    }
 
     return NextResponse.json({
-      gold: {
-        usd: goldUSD,
-        egp: goldUSD * usdToEgp,
-        change: goldData?.ch ?? 0,
-      },
-      silver: {
-        usd: silverUSD,
-        egp: silverUSD * usdToEgp,
-        change: silverData?.ch ?? 0,
-      },
+      gold:   { usd: goldUSD,   egp: goldEGP,   change: 0 },
+      silver: { usd: silverUSD, egp: silverEGP, change: 0 },
       usdToEgp,
     });
   } catch (error) {
-    console.error("Live price fetch failed:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch live prices" },
-      { status: 500 }
-    );
+    console.error("GoldPriceZ fetch failed:", error);
+    return NextResponse.json({ error: "Failed to fetch live prices" }, { status: 500 });
   }
 }
